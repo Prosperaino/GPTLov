@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import itertools
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
