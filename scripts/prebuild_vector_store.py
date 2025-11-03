@@ -152,7 +152,7 @@ def main() -> None:
     workspace: Path = args.workspace
     artifact_path: Path = args.artifact
 
-    if not args.skip-build:
+    if not args.skip_build:
         print(f"Building vector store using archives in {raw_dir} ...")
         build_index(raw_dir, workspace, args.chunk_size, args.overlap, args.force)
     else:
