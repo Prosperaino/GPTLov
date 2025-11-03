@@ -25,7 +25,7 @@ class Settings:
     workspace_dir: Path = Path(
         _getenv("GPTLOV_WORKSPACE_DIR", "LOVCHAT_WORKSPACE_DIR") or "data/workspace"
     )
-    openai_model: str = _getenv("GPTLOV_OPENAI_MODEL", "LOVCHAT_OPENAI_MODEL") or "gpt-4o-mini"
+    openai_model: str = "gpt-5"
     top_k: int = int(_getenv("GPTLOV_TOP_K", "LOVCHAT_TOP_K") or "5")
     search_backend: str = (_getenv("GPTLOV_SEARCH_BACKEND") or "sklearn").lower()
     es_host: str | None = _getenv("GPTLOV_ES_HOST", "ELASTICSEARCH_URL")

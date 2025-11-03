@@ -329,6 +329,32 @@ class GPTLovBot:
             for score, item in adjusted
         ]
 
+    @staticmethod
+    def _extract_value(obj: Any, key: str, default: Any = None) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    def _extract_response_text(self, response: Any) -> str:
+        direct = self._extract_value(response, "output_text")
+        if isinstance(direct, str) and direct.strip():
+            return direct.strip()
+
+        chunks: list[str] = []
+        output_items = self._extract_value(response, "output", []) or []
+        for item in output_items:
+            item_type = self._extract_value(item, "type")
+            if item_type != "message":
+                continue
+            contents = self._extract_value(item, "content", []) or []
+            for content in contents:
+                content_type = self._extract_value(content, "type")
+                if content_type == "output_text":
+                    text = self._extract_value(content, "text", "")
+                    if text:
+                        chunks.append(str(text))
+        return "".join(chunks).strip()
+
     def _render_markdown(self, text: str) -> str:
         html = self._markdown.render(text)
         sanitized = bleach.clean(
@@ -375,38 +401,37 @@ class GPTLovBot:
             context_text.append(f"[{idx}] {source_label}\n{snippet}")
         context_blob = "\n\n".join(context_text)
 
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Du er GPTLov, en juridisk veileder for norske lover og forskrifter. "
-                    "Gi alltid et tydelig og konkret svar basert på konteksten. "
-                    "Når informasjonen er begrenset, forklar hva kildene sier og presiser eventuelle "
-                    "mangler i stedet for å si at du er usikker. "
-                    "Svar alltid på norsk bokmål og pek gjerne på relevante paragrafer."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "Spørsmål:\n"
-                    f"{question}\n\n"
-                    "Tilgjengelig kontekst (utdrag nummerert i hakeparenteser):\n"
-                    f"{context_blob}\n\n"
-                    "Oppgave: Gi et strukturert svar som forklarer hva loven sier. "
-                    "Hvis du trekker inn informasjon fra flere utdrag, knytt uttalelsene til nummeret "
-                    "til kilden i hakeparentes, for eksempel [1]."
-                ),
-            },
-        ]
-
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.2,
+        instructions = (
+            "Du er GPTLov, en juridisk veileder for norske lover og forskrifter. "
+            "Gi alltid et tydelig og konkret svar basert på konteksten. "
+            "Når informasjonen er begrenset, forklar hva kildene sier og presiser eventuelle mangler "
+            "i stedet for å si at du er usikker. "
+            "Svar alltid på norsk bokmål og pek på relevante paragrafer når det er mulig."
         )
 
-        answer = response.choices[0].message.content.strip()
+        response = client.responses.create(
+            model=self.model,
+            instructions=instructions,
+            input=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Spørsmål:\n"
+                        f"{question}\n\n"
+                        "Tilgjengelig kontekst (utdrag nummerert i hakeparenteser):\n"
+                        f"{context_blob}\n\n"
+                        "Oppgave: Gi et strukturert svar som forklarer hva loven sier. "
+                        "Hvis du trekker inn informasjon fra flere utdrag, knytt uttalelsene til nummeret "
+                        "til kilden i hakeparentes, for eksempel [1]."
+                    ),
+                }
+            ],
+        )
+
+        answer = self._extract_response_text(response)
+        if not answer:
+            return "Modellen returnerte ikke noe svar denne gangen."
+
         if "jeg er ikke sikker" in answer.lower():
             fallback_sections: list[str] = []
             for idx, block in enumerate(context_blocks, start=1):
