@@ -65,6 +65,19 @@ gptlov build-index \
 The command extracts the archives, chunks the HTML/XML documents, and saves a TF-IDF index at
 `data/workspace/vector_store.pkl`.
 
+### Prebuild the vector store locally (recommended for Render)
+
+To avoid expensive indexing during deployment you can build the vector store once on your machine
+and host it somewhere HTTP-accessible:
+
+1. Run `gptlov build-index --raw-dir data/raw --workspace data/workspace --force` locally after
+   downloading the Lovdata archives.
+2. (Optional) Compress the result with `tar -czf vector_store.tar.gz -C data/workspace vector_store.pkl`.
+3. Upload `vector_store.pkl` (or the archive) to object storage or any static hosting provider.
+4. Set `GPTLOV_VECTOR_STORE_URL` to the download link. GPTLov supports direct `.pkl`, `.tar`,
+   `.tar.gz`, `.tgz`, `.tar.bz2`, and `.zip` files and will download/extract the vector store at
+   startup.
+
 ### Using Elasticsearch instead of the TF-IDF store
 
 If you set `GPTLOV_SEARCH_BACKEND=elasticsearch`, GPTLov will stream the chunks into an
@@ -122,10 +135,14 @@ Visit `http://localhost:8000/docs` for the interactive Swagger UI.
    - `OPENAI_API_KEY` (optional but required for model-generated answers)
    - `GPTLOV_RAW_DATA_DIR=data/raw`
    - `GPTLOV_WORKSPACE_DIR=data/workspace`
+   - (Optional) `GPTLOV_VECTOR_STORE_URL=https://…/vector_store.tar.gz` if you have prebuilt the index
+   - (Optional) `GPTLOV_ARCHIVES` with a comma-separated list of Lovdata archive filenames if you want to override the defaults (`gjeldende-lover.tar.bz2,gjeldende-sentrale-forskrifter.tar.bz2`).
+
+   If you decide to use an Elasticsearch cluster instead of the bundled TF-IDF store, also set:
+
    - `GPTLOV_SEARCH_BACKEND=elasticsearch`
    - `GPTLOV_ES_HOST=https://<user>:<password>@<your-elasticsearch-host>`
    - `GPTLOV_ES_INDEX=gptlov`
-   - (Optional) `GPTLOV_ARCHIVES` with a comma-separated list of Lovdata archive filenames if you want to override the defaults (`gjeldende-lover.tar.bz2,gjeldende-sentrale-forskrifter.tar.bz2`).
 5. Click **Deploy**. On service startup GPTLov downloads the public Lovdata archives, pushes the chunks
    to Elasticsearch, and serves the API.
 

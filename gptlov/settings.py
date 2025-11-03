@@ -37,6 +37,7 @@ class Settings:
         "false",
         "no",
     }
+    vector_store_url: str | None = _getenv("GPTLOV_VECTOR_STORE_URL")
     archives: tuple[str, ...] = field(default_factory=tuple)
 
     def ensure_directories(self) -> None:
