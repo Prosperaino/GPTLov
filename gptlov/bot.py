@@ -291,6 +291,13 @@ class GPTLovBot:
         ]
 
     def generate_answer(self, question: str, context_blocks: List[RetrievalResult]) -> str:
+        if not context_blocks:
+            return (
+                "Jeg fant ingen utdrag som matcher spørsmålet ditt i kildene våre.\n\n"
+                "Forslag: prøv å formulere spørsmålet med lovens navn, paragrafnummer eller et "
+                "mer konkret tema (for eksempel «§ 14-5 i arbeidsmiljøloven»)."
+            )
+
         try:
             client = self._ensure_client()
         except RuntimeError as exc:
@@ -300,24 +307,41 @@ class GPTLovBot:
                 f"{context}"
             )
 
-        context_text = "\n\n".join(
-            f"Kilde: {block.metadata.get('title') or block.metadata.get('refid') or block.metadata.get('source_path')}\n{block.content}"
-            for block in context_blocks
-        )
+        context_text = []
+        for idx, block in enumerate(context_blocks, start=1):
+            source_label = (
+                block.metadata.get("title")
+                or block.metadata.get("refid")
+                or block.metadata.get("source_path")
+                or f"Kilde {idx}"
+            )
+            snippet = block.content.strip()
+            if len(snippet) > 1800:
+                snippet = snippet[:1800].rsplit(" ", 1)[0] + " …"
+            context_text.append(f"[{idx}] {source_label}\n{snippet}")
+        context_blob = "\n\n".join(context_text)
 
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "Du er GPTLov, en hjelpsom assistent som svarer på spørsmål om norske lover og "
-                    "sentrale forskrifter. Oppgi kun informasjon hentet fra konteksten. Hvis svaret "
-                    "ikke finnes i utdragene, si at du ikke er sikker."
+                    "Du er GPTLov, en juridisk veileder for norske lover og forskrifter. "
+                    "Gi alltid et tydelig og konkret svar basert på konteksten. "
+                    "Når informasjonen er begrenset, forklar hva kildene sier og presiser eventuelle "
+                    "mangler i stedet for å si at du er usikker. "
+                    "Svar alltid på norsk bokmål og pek gjerne på relevante paragrafer."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "Kontekst:\n" + context_text + "\n\n" + f"Spørsmål: {question}\n" + "Svar på norsk."
+                    "Spørsmål:\n"
+                    f"{question}\n\n"
+                    "Tilgjengelig kontekst (utdrag nummerert i hakeparenteser):\n"
+                    f"{context_blob}\n\n"
+                    "Oppgave: Gi et strukturert svar som forklarer hva loven sier. "
+                    "Hvis du trekker inn informasjon fra flere utdrag, knytt uttalelsene til nummeret "
+                    "til kilden i hakeparentes, for eksempel [1]."
                 ),
             },
         ]
@@ -328,7 +352,30 @@ class GPTLovBot:
             temperature=0.2,
         )
 
-        return response.choices[0].message.content.strip()
+        answer = response.choices[0].message.content.strip()
+        if "jeg er ikke sikker" in answer.lower():
+            fallback_sections: list[str] = []
+            for idx, block in enumerate(context_blocks, start=1):
+                source_label = (
+                    block.metadata.get("title")
+                    or block.metadata.get("refid")
+                    or block.metadata.get("source_path")
+                    or f"Kilde {idx}"
+                )
+                snippet = block.content.strip()
+                sentences = re.split(r"(?<=[.!?])\s+", snippet)
+                summary = " ".join(sentences[:2]).strip()
+                if not summary:
+                    summary = snippet[:260].rsplit(" ", 1)[0] + " …"
+                fallback_sections.append(f"[{idx}] {source_label}: {summary}")
+
+            if fallback_sections:
+                answer = (
+                    "Her er det jeg fant i kildene:\n"
+                    + "\n".join(f"- {section}" for section in fallback_sections)
+                )
+
+        return answer
 
     def ask(self, question: str, top_k: int | None = None) -> dict[str, Any]:
         context_blocks = self.retrieve(question, top_k=top_k)
