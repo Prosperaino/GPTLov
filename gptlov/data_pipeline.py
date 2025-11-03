@@ -6,7 +6,7 @@ from typing import Iterable
 
 import httpx
 
-from .ingest import build_chunks, extract_archives
+from .ingest import build_chunks, extract_archives, iter_chunks
 from .index import build_vector_store
 from .search_backends import ElasticsearchBackend
 from .settings import settings
@@ -58,9 +58,6 @@ def ensure_vector_store(force: bool = False) -> Path | None:
         workspace_dir = settings.workspace_dir
         extracted_root = workspace_dir / "extracted"
         extracted_dirs = extract_archives(settings.raw_data_dir, extracted_root, force=force)
-        chunks = build_chunks(extracted_dirs)
-        logger.info("Built %d document chunks for Elasticsearch", len(chunks))
-
         backend = ElasticsearchBackend(
             host=settings.es_host or "",
             index=settings.es_index,
@@ -68,7 +65,9 @@ def ensure_vector_store(force: bool = False) -> Path | None:
             password=settings.es_password,
             verify_certs=settings.es_verify_certs,
         )
-        backend.index_documents(chunks, force=force)
+        chunk_iterator = iter_chunks(extracted_dirs)
+        indexed = backend.index_documents(chunk_iterator, force=force)
+        logger.info("Indexed %d document chunks into Elasticsearch index '%s'", indexed, settings.es_index)
         return None
 
     workspace_dir = settings.workspace_dir

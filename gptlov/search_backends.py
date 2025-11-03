@@ -69,13 +69,20 @@ class ElasticsearchBackend:
                 },
             )
 
-    def index_documents(self, chunks: Iterable[DocumentChunk], force: bool = False) -> None:
+    def index_documents(self, chunks: Iterable[DocumentChunk], force: bool = False) -> int:
         self.ensure_index(force=force)
 
         logger.info("Indexing document chunks into Elasticsearch '%s'", self.index)
         actions = self._yield_bulk_actions(chunks)
-        helpers.bulk(self.client, actions, chunk_size=500, request_timeout=120)
-        logger.info("Elasticsearch index '%s' is ready", self.index)
+        indexed = helpers.bulk(
+            self.client,
+            actions,
+            chunk_size=500,
+            request_timeout=120,
+            stats_only=True,
+        )
+        logger.info("Elasticsearch index '%s' is ready (indexed %d chunks)", self.index, indexed)
+        return indexed
 
     def _yield_bulk_actions(self, chunks: Iterable[DocumentChunk]) -> Iterator[Dict[str, object]]:
         for idx, chunk in enumerate(chunks):

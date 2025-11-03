@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from .bot import GPTLovBot
-from .ingest import build_chunks, extract_archives
+from .ingest import build_chunks, extract_archives, iter_chunks
 from .index import build_vector_store
 from .search_backends import ElasticsearchBackend
 from .settings import settings
@@ -21,10 +21,10 @@ def command_build_index(args: argparse.Namespace) -> None:
     extracted_dirs = extract_archives(raw_dir, extracted_root, force=args.force)
     print(f"Extracted {len(extracted_dirs)} archive folders")
 
-    chunks = build_chunks(extracted_dirs, chunk_size=args.chunk_size, overlap=args.overlap)
-    print(f"Created {len(chunks)} document chunks")
-
     if settings.search_backend == "elasticsearch":
+        chunk_iterator = iter_chunks(
+            extracted_dirs, chunk_size=args.chunk_size, overlap=args.overlap
+        )
         backend = ElasticsearchBackend(
             host=settings.es_host or "",
             index=settings.es_index,
@@ -32,9 +32,13 @@ def command_build_index(args: argparse.Namespace) -> None:
             password=settings.es_password,
             verify_certs=settings.es_verify_certs,
         )
-        backend.index_documents(chunks, force=args.force)
-        print(f"Indexed chunks into Elasticsearch index '{settings.es_index}'")
+        indexed = backend.index_documents(chunk_iterator, force=args.force)
+        print(f"Indexed {indexed} chunks into Elasticsearch index '{settings.es_index}'")
     else:
+        chunks = build_chunks(
+            extracted_dirs, chunk_size=args.chunk_size, overlap=args.overlap
+        )
+        print(f"Created {len(chunks)} document chunks")
         store_path = build_vector_store(chunks, workspace)
         print(f"Vector store saved to {store_path}")
 

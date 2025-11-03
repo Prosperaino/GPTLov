@@ -115,15 +115,21 @@ def chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> List[st
     return chunks
 
 
-def build_chunks(extracted_dirs: Iterable[Path], chunk_size: int = 1200, overlap: int = 200) -> list[DocumentChunk]:
-    """Create document chunks from extracted archives."""
+def iter_chunks(
+    extracted_dirs: Iterable[Path], chunk_size: int = 1200, overlap: int = 200
+) -> Iterator[DocumentChunk]:
+    """Yield document chunks from extracted archives without storing them all in memory."""
 
     paths = list(iter_document_paths(extracted_dirs))
-    chunks: list[DocumentChunk] = []
-
     for path in tqdm(paths, desc="Parsing documents"):
         text, title, refid = parse_document(path)
         for chunk in chunk_text(text, chunk_size=chunk_size, overlap=overlap):
-            chunks.append(DocumentChunk(text=chunk, source_path=path, title=title, refid=refid))
+            yield DocumentChunk(text=chunk, source_path=path, title=title, refid=refid)
 
-    return chunks
+
+def build_chunks(
+    extracted_dirs: Iterable[Path], chunk_size: int = 1200, overlap: int = 200
+) -> list[DocumentChunk]:
+    """Create document chunks from extracted archives and return them as a list."""
+
+    return list(iter_chunks(extracted_dirs, chunk_size=chunk_size, overlap=overlap))
