@@ -65,7 +65,7 @@ const handleSubmit = async (event) => {
 
   setLoading(true);
   results.classList.remove("visible");
-  answerBlock.textContent = "";
+  answerBlock.innerHTML = "";
   sourcesContainer.innerHTML = "";
 
   try {
@@ -80,7 +80,11 @@ const handleSubmit = async (event) => {
     }
 
     const payload = await response.json();
-    answerBlock.textContent = payload.answer || "Jeg klarte ikke å finne et svar denne gangen.";
+    if (payload.answer_html) {
+      answerBlock.innerHTML = payload.answer_html;
+    } else {
+      answerBlock.textContent = payload.answer || "Jeg klarte ikke å finne et svar denne gangen.";
+    }
     renderSources(payload.sources || []);
     results.classList.add("visible");
     statusLine.textContent = "Her er svaret ditt:";

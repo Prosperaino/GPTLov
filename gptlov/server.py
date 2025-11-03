@@ -50,6 +50,7 @@ class SourceResponse(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
+    answer_html: str
     sources: List[SourceResponse]
 
 
@@ -96,7 +97,11 @@ async def ask(request: AskRequest) -> AskResponse:
         for entry in result.get("contexts", [])
     ]
 
-    return AskResponse(answer=result["answer"], sources=sources)
+    return AskResponse(
+        answer=result["answer"],
+        answer_html=result.get("answer_html", result["answer"]),
+        sources=sources,
+    )
 
 
 @app.get("/", response_class=HTMLResponse)

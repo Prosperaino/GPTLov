@@ -7,12 +7,46 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
+import bleach
 from openai import OpenAI
 from sklearn.metrics.pairwise import cosine_similarity
+from markdown_it import MarkdownIt
 
 from .index import VectorStore
 from .search_backends import ElasticsearchBackend
 from .settings import settings
+
+_ALLOWED_TAGS = set(bleach.sanitizer.ALLOWED_TAGS).union(
+    {
+        "p",
+        "pre",
+        "code",
+        "blockquote",
+        "ul",
+        "ol",
+        "li",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "hr",
+        "br",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+    }
+)
+_ALLOWED_ATTRS: Dict[str, List[str]] = {
+    key: sorted(set(value)) for key, value in bleach.sanitizer.ALLOWED_ATTRIBUTES.items()
+}
+_ALLOWED_ATTRS["a"] = sorted(set(_ALLOWED_ATTRS.get("a", [])) | {"href", "title", "rel"})
+_ALLOWED_ATTRS["th"] = sorted(set(_ALLOWED_ATTRS.get("th", [])) | {"scope", "colspan", "rowspan", "align"})
+_ALLOWED_ATTRS["td"] = sorted(set(_ALLOWED_ATTRS.get("td", [])) | {"colspan", "rowspan", "align"})
 
 
 @dataclass
@@ -47,6 +81,11 @@ class GPTLovBot:
             self._es_backend = None
         self.model = model or settings.openai_model
         self._client: OpenAI | None = None
+        self._markdown = (
+            MarkdownIt("commonmark", {"linkify": True, "breaks": True, "typographer": True})
+            .enable("table")
+            .enable("strikethrough")
+        )
 
     def _ensure_client(self) -> OpenAI:
         if self._client:
@@ -290,6 +329,16 @@ class GPTLovBot:
             for score, item in adjusted
         ]
 
+    def _render_markdown(self, text: str) -> str:
+        html = self._markdown.render(text)
+        sanitized = bleach.clean(
+            html,
+            tags=_ALLOWED_TAGS,
+            attributes=_ALLOWED_ATTRS,
+            strip=True,
+        )
+        return bleach.linkify(sanitized, parse_email=False)
+
     def generate_answer(self, question: str, context_blocks: List[RetrievalResult]) -> str:
         if not context_blocks:
             return (
@@ -317,7 +366,12 @@ class GPTLovBot:
             )
             snippet = block.content.strip()
             if len(snippet) > 1800:
-                snippet = snippet[:1800].rsplit(" ", 1)[0] + " …"
+                trimmed = snippet[:1800]
+                if " " in trimmed:
+                    trimmed = trimmed.rsplit(" ", 1)[0]
+                if not trimmed:
+                    trimmed = snippet[:1800]
+                snippet = trimmed.rstrip() + " …"
             context_text.append(f"[{idx}] {source_label}\n{snippet}")
         context_blob = "\n\n".join(context_text)
 
@@ -366,7 +420,12 @@ class GPTLovBot:
                 sentences = re.split(r"(?<=[.!?])\s+", snippet)
                 summary = " ".join(sentences[:2]).strip()
                 if not summary:
-                    summary = snippet[:260].rsplit(" ", 1)[0] + " …"
+                    trimmed = snippet[:260]
+                    if " " in trimmed:
+                        trimmed = trimmed.rsplit(" ", 1)[0]
+                    if not trimmed:
+                        trimmed = snippet[:260]
+                    summary = trimmed.rstrip() + " …"
                 fallback_sections.append(f"[{idx}] {source_label}: {summary}")
 
             if fallback_sections:
@@ -380,8 +439,10 @@ class GPTLovBot:
     def ask(self, question: str, top_k: int | None = None) -> dict[str, Any]:
         context_blocks = self.retrieve(question, top_k=top_k)
         answer = self.generate_answer(question, context_blocks)
+        answer_html = self._render_markdown(answer)
         return {
             "answer": answer,
+            "answer_html": answer_html,
             "contexts": [
                 {
                     "score": block.score,
