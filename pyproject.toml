@@ -3,9 +3,9 @@ requires = ["setuptools>=67.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lovchat"
+name = "gptlov"
 version = "0.1.0"
-description = "LovChat - Retrieval-augmented chatbot for Lovdata public law datasets"
+description = "GPTLov - Retrieval-augmented chatbot for Lovdata public law datasets"
 readme = "README.md"
 authors = [{name = "Prosper AI", email = "engineering@prosper.no"}]
 requires-python = ">=3.11"
@@ -23,4 +23,4 @@ dependencies = [
 ]
 
 [project.scripts]
-lovchat = "lovchat.cli:main"
+gptlov = "gptlov.cli:main"

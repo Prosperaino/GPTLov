@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .bot import LovChatBot
+from .bot import GPTLovBot
 from .ingest import build_chunks, extract_archives
 from .index import build_vector_store
 from .settings import settings
@@ -43,17 +43,17 @@ def command_chat(args: argparse.Namespace) -> None:
     store_path = Path(args.store).expanduser().resolve() if args.store else workspace / "vector_store.pkl"
 
     if not store_path.exists():
-        print(f"Vector store not found at {store_path}. Run 'lovchat build-index' first.", file=sys.stderr)
+        print(f"Vector store not found at {store_path}. Run 'gptlov build-index' first.", file=sys.stderr)
         raise SystemExit(1)
 
-    bot = LovChatBot(store_path=store_path, model=args.model)
+    bot = GPTLovBot(store_path=store_path, model=args.model)
 
     if args.question:
         result = bot.ask(args.question, top_k=args.top_k)
         print(format_answer(result, args.sources))
         return
 
-    print("LovChat er klar! Skriv spørsmål om lover/forskrifter. Skriv 'exit' for å avslutte.")
+    print("GPTLov er klar! Skriv spørsmål om lover/forskrifter. Skriv 'exit' for å avslutte.")
     while True:
         try:
             question = input("\nDu: ")
@@ -70,7 +70,7 @@ def command_chat(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="lovchat", description="Lovdata RAG chatbot")
+    parser = argparse.ArgumentParser(prog="gptlov", description="Lovdata RAG chatbot")
     subparsers = parser.add_subparsers(dest="command")
 
     build_cmd = subparsers.add_parser("build-index", help="Extract archives and build the vector store")
@@ -81,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_cmd.add_argument("--force", action="store_true", help="Force re-extraction of archives")
     build_cmd.set_defaults(func=command_build_index)
 
-    chat_cmd = subparsers.add_parser("chat", help="Open the interactive LovChat assistant")
+    chat_cmd = subparsers.add_parser("chat", help="Open the interactive GPTLov assistant")
     chat_cmd.add_argument("--workspace", default=str(settings.workspace_dir), help="Directory containing the vector store")
     chat_cmd.add_argument("--store", help="Path to a specific vector store file")
     chat_cmd.add_argument("--question", help="Ask a single question and exit")

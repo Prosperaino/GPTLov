@@ -1,16 +1,16 @@
-# LovChat
+# GPTLov
 
-LovChat is a lightweight retrieval-augmented chatbot for exploring the Lovdata public law datasets.
+GPTLov is a lightweight retrieval-augmented chatbot for exploring the Lovdata public law datasets.
 It builds a TF-IDF search index over the published HTML/XML documents and can optionally call the
 OpenAI API to generate summarised answers from the retrieved context.
 
 ## Project structure
 
 ```
-LovChat/
-├── lovchat/            # Source package
+GPTLov/
+├── gptlov/            # Source package
 │   ├── bot.py          # Retrieval + generation logic
-│   ├── cli.py          # Command-line interface (`lovchat`)
+│   ├── cli.py          # Command-line interface (`gptlov`)
 │   ├── ingest.py       # Archive extraction and chunking helpers
 │   ├── index.py        # Vector store construction utilities
 │   └── settings.py     # Simple configuration / environment handling
@@ -25,16 +25,18 @@ LovChat/
 - The Lovdata public archives (e.g. `gjeldende-lover.tar.bz2`, `gjeldende-sentrale-forskrifter.tar.bz2`).
   Copy the files into `data/raw/` inside this repository.
 - An OpenAI API key if you want model-generated answers (set the environment variable `OPENAI_API_KEY`).
-  Without a key, LovChat will fall back to returning the best matching excerpts.
+  Without a key, GPTLov will fall back to returning the best matching excerpts.
 
 Optional environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `LOVCHAT_RAW_DATA_DIR` | Custom location of the downloaded archives (`data/raw` by default). |
-| `LOVCHAT_WORKSPACE_DIR` | Directory to hold extracted files and the TF-IDF index (`data/workspace` by default). |
-| `LOVCHAT_OPENAI_MODEL` | Overrides the chat completion model (default `gpt-4o-mini`). |
+| `GPTLOV_RAW_DATA_DIR` | Custom location of the downloaded archives (`data/raw` by default). |
+| `GPTLOV_WORKSPACE_DIR` | Directory to hold extracted files and the TF-IDF index (`data/workspace` by default). |
+| `GPTLOV_OPENAI_MODEL` | Overrides the chat completion model (default `gpt-4o-mini`). |
 | `OPENAI_BASE_URL` | Point to a custom OpenAI-compatible endpoint. |
+
+> Existing `LOVCHAT_*` environment variables are still honoured for backwards compatibility.
 
 ## Setup
 
@@ -55,7 +57,7 @@ cp ../lovdata-public-data/*.tar.bz2 data/raw/
 ## Build the index
 
 ```bash
-lovchat build-index \
+gptlov build-index \
   --raw-dir data/raw \
   --workspace data/workspace
 ```
@@ -63,28 +65,28 @@ lovchat build-index \
 The command extracts the archives, chunks the HTML/XML documents, and saves a TF-IDF index at
 `data/workspace/vector_store.pkl`.
 
-## Chat with LovChat
+## Chat with GPTLov
 
 Interactive mode:
 
 ```bash
-lovchat chat --workspace data/workspace
+gptlov chat --workspace data/workspace
 ```
 
 Single question:
 
 ```bash
-lovchat chat --workspace data/workspace --question "Hva er hjemmelen for forskrift X?"
+gptlov chat --workspace data/workspace --question "Hva er hjemmelen for forskrift X?"
 ```
 
-LovChat displays the generated answer (or the best matching excerpts) alongside the top sources used.
+GPTLov displays the generated answer (or the best matching excerpts) alongside the top sources used.
 
 ## Run the API server locally
 
-LovChat ships with a FastAPI application that exposes the chatbot via HTTP.
+GPTLov ships with a FastAPI application that exposes the chatbot via HTTP.
 
 ```bash
-uvicorn lovchat.server:app --reload --port 8000
+uvicorn gptlov.server:app --reload --port 8000
 ```
 
 - `GET /health` – health probe returning `{ "status": "ok" }`
@@ -94,28 +96,28 @@ Visit `http://localhost:8000/docs` for the interactive Swagger UI.
 
 ## Deploy to Render
 
-1. Push this repository to GitHub (already under `Prosperaino/LovChat`).
+1. Push this repository to GitHub (already under `Prosperaino/GPTLov`).
 2. Log in to https://render.com and click **New +** → **Blueprint**. Select the repository and ensure Render sees the `render.yaml` file in the root.
 3. Review the service configuration:
    - Environment: Python
    - Build command: `pip install --upgrade pip && pip install -e .`
-   - Start command: `uvicorn lovchat.server:app --host 0.0.0.0 --port 10000`
+   - Start command: `uvicorn gptlov.server:app --host 0.0.0.0 --port 10000`
    - Persistent disk is not required; Render provides an ephemeral disk for the vector store build on startup.
 4. Add the environment variables:
    - `OPENAI_API_KEY` (optional but required for model-generated answers)
-   - `LOVCHAT_RAW_DATA_DIR=data/raw`
-   - `LOVCHAT_WORKSPACE_DIR=data/workspace`
-   - (Optional) `LOVCHAT_ARCHIVES` with a comma-separated list of Lovdata archive filenames if you want to override the defaults (`gjeldende-lover.tar.bz2,gjeldende-sentrale-forskrifter.tar.bz2`).
-5. Click **Deploy**. On service startup LovChat downloads the public Lovdata archives, builds the TF-IDF vector store, and serves the API.
+   - `GPTLOV_RAW_DATA_DIR=data/raw`
+   - `GPTLOV_WORKSPACE_DIR=data/workspace`
+   - (Optional) `GPTLOV_ARCHIVES` with a comma-separated list of Lovdata archive filenames if you want to override the defaults (`gjeldende-lover.tar.bz2,gjeldende-sentrale-forskrifter.tar.bz2`).
+5. Click **Deploy**. On service startup GPTLov downloads the public Lovdata archives, builds the TF-IDF vector store, and serves the API.
 
 ### Custom domain `gptlov.no`
 
 Once the Render deployment is live:
 
-1. In the Render dashboard, open the LovChat service → **Settings** → **Custom Domains** → **Add Custom Domain**.
+1. In the Render dashboard, open the GPTLov service → **Settings** → **Custom Domains** → **Add Custom Domain**.
 2. Enter `gptlov.no` (and optionally `www.gptlov.no`). Render will show the required DNS target (a CNAME record pointing to `your-service.onrender.com`).
 3. In your domain registrar's DNS control panel (where `gptlov.no` is registered), create:
-   - A CNAME record for `www` pointing to the Render-provided hostname (e.g. `lovchat.onrender.com`).
+   - A CNAME record for `www` pointing to the Render-provided hostname (e.g. `gptlov.onrender.com`).
    - If you want the apex (`gptlov.no` without `www`), add an ALIAS/ANAME record pointing to the same Render hostname, or use a URL redirect to `www.gptlov.no` if your registrar supports it.
 4. Wait for DNS propagation (usually a few minutes). Render will automatically generate TLS certificates once the DNS records resolve correctly.
 5. Verify by browsing to `https://gptlov.no`.

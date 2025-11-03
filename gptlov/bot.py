@@ -20,7 +20,7 @@ class RetrievalResult:
     metadata: Dict[str, Any]
 
 
-class LovChatBot:
+class GPTLovBot:
     """Simple retrieval-augmented chatbot for Lovdata content."""
 
     def __init__(self, store_path: str | os.PathLike[str], model: str | None = None):
@@ -80,7 +80,7 @@ class LovChatBot:
             {
                 "role": "system",
                 "content": (
-                    "Du er LovChat, en hjelpsom assistent som svarer på spørsmål om norske lover og "
+                    "Du er GPTLov, en hjelpsom assistent som svarer på spørsmål om norske lover og "
                     "sentrale forskrifter. Oppgi kun informasjon hentet fra konteksten. Hvis svaret "
                     "ikke finnes i utdragene, si at du ikke er sikker."
                 ),

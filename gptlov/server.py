@@ -7,15 +7,15 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from .bot import LovChatBot
+from .bot import GPTLovBot
 from .data_pipeline import ensure_vector_store
 from .settings import settings
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="LovChat", version="0.1.0")
+app = FastAPI(title="GPTLov", version="0.1.0")
 
-_bot: Optional[LovChatBot] = None
+_bot: Optional[GPTLovBot] = None
 
 
 class AskRequest(BaseModel):
@@ -42,8 +42,8 @@ async def startup_event() -> None:
     loop = asyncio.get_event_loop()
     logger.info("Ensuring vector store is available...")
     store_path = await loop.run_in_executor(None, ensure_vector_store)
-    _bot = LovChatBot(store_path=store_path)
-    logger.info("LovChatBot initialised with store at %s", store_path)
+    _bot = GPTLovBot(store_path=store_path)
+    logger.info("GPTLovBot initialised with store at %s", store_path)
 
 
 @app.get("/health")
@@ -51,7 +51,7 @@ async def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-def _get_bot() -> LovChatBot:
+def _get_bot() -> GPTLovBot:
     if _bot is None:
         raise HTTPException(status_code=503, detail="Vector store not ready")
     return _bot
@@ -82,6 +82,6 @@ async def ask(request: AskRequest) -> AskResponse:
 @app.get("/")
 async def root() -> Dict[str, str]:
     return {
-        "message": "Welcome to LovChat.",
+        "message": "Welcome to GPTLov.",
         "docs": "/docs",
     }
