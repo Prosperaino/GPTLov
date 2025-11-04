@@ -130,7 +130,7 @@ const handleSubmit = async (event) => {
   let recordedDuration = false;
 
   try {
-    const response = await fetch("/ask", {
+    const response = await fetch("ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),

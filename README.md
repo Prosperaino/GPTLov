@@ -149,17 +149,25 @@ Visit `http://localhost:8000/docs` for the interactive Swagger UI.
 5. Click **Deploy**. On service startup GPTLov downloads the public Lovdata archives, pushes the chunks
    to Elasticsearch, and serves the API.
 
-### Custom domain `gptlov.no`
+### Public URL `labs.prosper-ai.no/gptlov/`
 
-Once the Render deployment is live:
+Once the Render deployment is live and your reverse proxy/DNS is configured:
 
-1. In the Render dashboard, open the GPTLov service → **Settings** → **Custom Domains** → **Add Custom Domain**.
-2. Enter `gptlov.no` (and optionally `www.gptlov.no`). Render will show the required DNS target (a CNAME record pointing to `your-service.onrender.com`).
-3. In your domain registrar's DNS control panel (where `gptlov.no` is registered), create:
-   - A CNAME record for `www` pointing to the Render-provided hostname (e.g. `gptlov.onrender.com`).
-   - If you want the apex (`gptlov.no` without `www`), add an ALIAS/ANAME record pointing to the same Render hostname, or use a URL redirect to `www.gptlov.no` if your registrar supports it.
-4. Wait for DNS propagation (usually a few minutes). Render will automatically generate TLS certificates once the DNS records resolve correctly.
-5. Verify by browsing to `https://gptlov.no`.
+1. Point `labs.prosper-ai.no` at the Render service (via CNAME or the mechanism your DNS provider recommends).
+2. Ensure the proxy forwards requests for `/gptlov/` (including `/gptlov/ask` and `/gptlov/static`) to the Render service without stripping the prefix.
+3. Wait for DNS propagation and TLS issuance. Render will provision certificates automatically once the DNS resolves correctly.
+4. Verify by browsing to `https://labs.prosper-ai.no/gptlov/`.
+
+### Route multiple apps from `labs.prosper-ai.no`
+
+The repository includes `cloudflare/worker.js`, a Cloudflare Worker that forwards different path prefixes on the `labs.prosper-ai.no` host to any backend (Render or otherwise). To use it:
+
+1. Create a Worker on Cloudflare → paste the script from `cloudflare/worker.js`.
+2. Add Worker environment variables for each origin you target (e.g. `GPTLOV_ORIGIN=https://<render-service>.onrender.com`).
+3. Attach the Worker to the zone with a route such as `labs.prosper-ai.no/*`.
+4. Extend the `ROUTES` array in the script for more applications, giving each a unique `prefix` and matching environment variable.
+5. Ensure your DNS record for `labs.prosper-ai.no` is proxied (orange cloud) so requests flow through the Worker.
+6. Visiting `https://labs.prosper-ai.no/` displays a minimal Prosper AI Labs placeholder directly from the Worker; override it if you prefer a different landing page. Routes without a trailing slash are automatically redirected (e.g. `/gptlov → /gptlov/`), and the Worker rewrites any root-relative asset URLs (`/static/...`) to include the prefix so CSS/JS load correctly.
 
 ## License
 
