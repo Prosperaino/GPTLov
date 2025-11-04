@@ -6,21 +6,6 @@ services:
     buildCommand: |
       pip install --upgrade pip
       pip install -e .
-      # Ensure Node.js 20+ and Yarn are available for the labs frontend build
-      if ! command -v node >/dev/null 2>&1; then
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-        apt-get update
-        apt-get install -y nodejs
-      fi
-      if command -v corepack >/dev/null 2>&1; then
-        corepack enable
-      fi
-      if ! command -v yarn >/dev/null 2>&1; then
-        npm install --global yarn
-      fi
-      cd labs_app/frontend
-      yarn install --frozen-lockfile
-      REACT_APP_API_HOST=/api yarn build
     startCommand: uvicorn gptlov.server:app --host 0.0.0.0 --port 10000
     autoDeploy: true
     envVars:

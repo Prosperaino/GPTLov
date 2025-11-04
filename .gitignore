@@ -14,4 +14,3 @@ vector_store/
 *.zip
 
 node_modules/
-labs_app/frontend/build/
