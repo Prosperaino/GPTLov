@@ -95,16 +95,47 @@ const GLOBAL_STATE: GlobalStateType = {
 }
 
 const resolveApiHost = () => {
+  const basePath =
+    typeof window !== 'undefined' && window.location
+      ? (() => {
+          const segments = window.location.pathname.split('/').filter(Boolean)
+          if (!segments.length) {
+            return ''
+          }
+          return `/${segments[0]}`
+        })()
+      : ''
+
+  const normaliseRelative = (value: string) => {
+    const cleaned = value.replace(/\/+$/, '')
+    if (!cleaned.startsWith('/')) {
+      return cleaned
+    }
+    if (!basePath || cleaned.startsWith(basePath)) {
+      return cleaned || '/'
+    }
+    const combined = `${basePath}${cleaned}`.replace(/\/{2,}/g, '/')
+    return combined === '' ? '/' : combined
+  }
+
   const envHost = process.env.REACT_APP_API_HOST?.trim()
-  if (envHost && envHost.length) {
-    return envHost.replace(/\/$/, '')
+  if (envHost) {
+    if (/^https?:\/\//i.test(envHost)) {
+      return envHost.replace(/\/$/, '')
+    }
+    return normaliseRelative(envHost)
   }
 
   if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin.replace(/\/$/, '')}/api`
+    const origin = window.location.origin.replace(/\/$/, '')
+    const relativeApiPath = normaliseRelative('/api')
+    if (relativeApiPath.startsWith('/')) {
+      return `${origin}${relativeApiPath}`
+    }
+    return `${origin}/${relativeApiPath}`
   }
 
-  return '/api'
+  return normaliseRelative('/api')
 }
 
 const API_HOST = resolveApiHost()
