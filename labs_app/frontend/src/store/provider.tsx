@@ -446,16 +446,39 @@ export const thunkActions = {
             } else if (payloadType === STREAMING_EVENTS.CONTEXTS) {
               // Context metadata already handled via SOURCE events
             } else if (payloadType === STREAMING_EVENTS.ANSWER_HTML) {
+              let html = ''
+
               if (typeof payloadData === 'string') {
+                html = payloadData
+              } else if (
+                payloadData &&
+                typeof payloadData === 'object' &&
+                'html' in (payloadData as Record<string, unknown>)
+              ) {
+                const candidate = (payloadData as Record<string, unknown>).html
+                if (typeof candidate === 'string') {
+                  html = candidate
+                }
+              }
+
+              if (html) {
                 dispatch(
                   actions.updateMessage({
                     id: conversationId,
-                    contentHtml: payloadData,
+                    contentHtml: html,
                   })
                 )
               }
             } else if (payloadType === STREAMING_EVENTS.CHUNK) {
-              const chunk = typeof payloadData === 'string' ? payloadData : ''
+              let chunk = typeof payloadData === 'string' ? payloadData : ''
+
+              if (!chunk && payloadData && typeof payloadData === 'object') {
+                const candidate = (payloadData as Record<string, unknown>).text
+                if (typeof candidate === 'string') {
+                  chunk = candidate
+                }
+              }
+
               if (chunk) {
                 message += chunk
 
