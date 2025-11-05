@@ -248,9 +248,10 @@ class GPTLovBot:
         question: str,
         keyword_terms: set[str],
         law_terms: set[str],
-    ) -> tuple[set[str], set[str]]:
+    ) -> tuple[set[str], set[str], set[str]]:
         augmented = set(law_terms)
         implied: set[str] = set()
+        domain_tags: set[str] = set()
         lowered = question.lower()
 
         if "klag" in lowered:
@@ -260,8 +261,30 @@ class GPTLovBot:
         if "bygg" in lowered or any(term.startswith("bygg") for term in keyword_terms):
             implied.update({"plan- og bygningsloven", "byggesaksforskriften"})
             augmented.update({"plan- og bygningsloven", "byggesaksforskriften"})
+            domain_tags.add("building")
 
-        return augmented, implied
+        employment_triggers = (
+            "arbeid",
+            "ansett",
+            "arbeidsmiljø",
+            "overtid",
+            "vikar",
+            "ansatt",
+            "arbeidstaker",
+            "arbeidsgiver",
+            "oppsei",
+            "oppsig",
+            "midlertid",
+        )
+        if any(trigger in lowered for trigger in employment_triggers) or any(
+            term.startswith("arbeid") or term.startswith("ansett")
+            for term in keyword_terms
+        ):
+            implied.add("arbeidsmiljøloven")
+            augmented.add("arbeidsmiljøloven")
+            domain_tags.add("employment")
+
+        return augmented, implied, domain_tags
 
     def _calculate_keyword_boost(
         self,
@@ -499,6 +522,7 @@ class GPTLovBot:
             chapter_terms,
             keyword_terms,
             implied_law_terms,
+            domain_tags,
         ) = self._extract_query_hints(question)
         keyword_roots = {term[:4] for term in keyword_terms if len(term) >= 4}
 
@@ -512,6 +536,7 @@ class GPTLovBot:
                 keyword_terms=keyword_terms,
                 implied_law_terms=implied_law_terms,
                 keyword_roots=keyword_roots,
+                domain_tags=domain_tags,
             )
 
         if not self.store:
@@ -552,6 +577,7 @@ class GPTLovBot:
             implied_law_terms=implied_law_terms,
             keyword_roots=keyword_roots,
             question_lower=question.lower(),
+            domain_tags=domain_tags,
             candidates=candidates,
         )
         return self._select_top_candidates(reranked, top_k)
@@ -567,6 +593,7 @@ class GPTLovBot:
         keyword_terms: set[str],
         implied_law_terms: set[str],
         keyword_roots: set[str],
+        domain_tags: set[str],
     ) -> List[RetrievalResult]:
         if not self._es_backend:
             raise RuntimeError("Elasticsearch backend is not configured.")
@@ -587,6 +614,7 @@ class GPTLovBot:
             implied_law_terms=implied_law_terms,
             keyword_roots=keyword_roots,
             question_lower=question.lower(),
+            domain_tags=domain_tags,
             candidates=candidates,
         )
         return self._select_top_candidates(reranked, top_k)
@@ -607,10 +635,17 @@ class GPTLovBot:
             for match in self._CHAPTER_PATTERN.finditer(question)
         }
         keyword_terms = self._extract_question_keywords(question)
-        law_terms, implied_law_terms = self._augment_law_terms(
+        law_terms, implied_law_terms, domain_tags = self._augment_law_terms(
             question, keyword_terms, law_terms
         )
-        return law_terms, paragraph_terms, chapter_terms, keyword_terms, implied_law_terms
+        return (
+            law_terms,
+            paragraph_terms,
+            chapter_terms,
+            keyword_terms,
+            implied_law_terms,
+            domain_tags,
+        )
 
     def _find_metadata_matches(self, law_terms: set[str], scores: np.ndarray) -> list[int]:
         if not self.store:
@@ -677,6 +712,7 @@ class GPTLovBot:
         implied_law_terms: set[str],
         keyword_roots: set[str],
         question_lower: str,
+        domain_tags: set[str],
         candidates: List[RetrievalResult],
     ) -> List[RetrievalResult]:
         """Apply simple heuristics to favour chunks that directly match the query metadata."""
@@ -796,6 +832,34 @@ class GPTLovBot:
                     )
                     if not domain_hits:
                         boost -= 0.35
+            if "employment" in domain_tags:
+                aml_match = any(
+                    token in title or token in refid or token in path
+                    for token in ("arbeidsmiljøloven", "arbeidsmiljø", "aml")
+                )
+                if aml_match:
+                    boost += 0.38
+                else:
+                    if (
+                        "plan- og bygnings" in title
+                        or "plan- og bygnings" in refid
+                        or "plan- og bygnings" in path
+                    ):
+                        boost -= 0.6
+                    if (
+                        "merverdiavgift" in title
+                        or "skatteforvaltning" in title
+                        or "skatte" in path
+                    ):
+                        boost -= 0.4
+                    employment_keyword_hit = any(
+                        key in content or key in normalized_content
+                        for key in ("ansett", "arbeids", "arbeidsgiver", "arbeidstaker")
+                    )
+                    if employment_keyword_hit:
+                        boost += 0.1
+                    else:
+                        boost -= 0.22
 
             if "klag" in question_lower:
                 if "klag" in content:
